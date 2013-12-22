@@ -150,7 +150,7 @@ static int beuer_hm20_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS]) {
     char *table[] = {"fast decrease", "slow decrease", "constant", "slow increase", "fast increase" };
     
     dir = (bb[1][0]>>4)&16;
-    dir = (dir==16) ? 15 : dir;
+    dir = (dir>15) ? 15 : dir;
     mult = (bb[1][1]);
     deg = (bb[1][2]);
     symb = (bb[1][3]);
