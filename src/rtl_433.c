@@ -143,6 +143,53 @@ static int debug_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS]) {
     return 0;
 }
 
+static int beuer_hm20_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS]) {
+    /* Two bits map to 2 states, 0 1 -> 0 and 1 1 -> 1 */
+    int i;
+    uint8_t dir,mult,deg,symb,check;
+    char *table[] = {"fast decrease", "slow decrease", "constant", "slow increase", "fast increase" };
+    
+    dir = (bb[1][0]>>4)&16;
+    dir = (dir==16) ? 15 : dir;
+    mult = (bb[1][1]);
+    deg = (bb[1][2]);
+    symb = (bb[1][3]);
+    check = (bb[1][4]);
+    float temp;
+    
+    //printf("BEUER CALLBACK KICKING IN! %02x %02x %02x %02x %02x\n",bb[1][0],bb[1][1],bb[1][2],bb[1][3],bb[1][4]);
+    if (check==0)
+    {
+	// multiplier = 10, temp=0 - 25.6C
+	if (mult==0x10)
+	{
+	    temp = (float)0+(float)deg/10;
+	}
+	else if (mult==0x11)
+	{
+	    temp = (float)25.6+(float)deg/10;
+	}
+	else if (mult==0x1f)
+	{
+	    temp = (float)0-(float)deg/10;
+	}
+	else if (mult==0x1e)
+	{
+	    temp = (float)-25.6-(float)deg/10;
+	}
+	else return 0;
+
+	if (debug_output)
+    	    debug_callback(bb);
+
+	fprintf(stderr,"Temperature: %.1fC (%s)\n",temp, table[dir/3]);
+	return 1;
+    }
+    return 0;
+}
+
+
+
 static int silvercrest_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS]) {
     /* FIXME validate the received message better */
     if (bb[1][0] == 0xF8 &&
@@ -261,6 +308,10 @@ static int waveman_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS]) {
     }
     return 0;
 }
+
+
+
+
 
 
 uint16_t AD_POP(uint8_t bb[BITBUF_COLS], uint8_t bits, uint8_t bit) {
@@ -481,6 +532,17 @@ r_device waveman = {
     /* .reset_limit    = */ 30000/4,
     /* .json_callback  = */ &waveman_callback,
 };
+
+r_device beuer_hm20 = {
+    /*.id             = */ 7,
+    /*.name           = */ "Beuer HM20 weather station",
+    /*.modulation     = */ OOK_PWM_D,
+    /* .short_limit    = */ 2500/4,
+    /* .long_limit     = */ 7000/4,
+    /* .reset_limit    = */ 15000/4,
+    /* .json_callback  = */ &beuer_hm20_callback,
+};
+
 
 
 struct protocol_state {
@@ -1042,6 +1104,14 @@ static void pwm_d_decode(struct dm_state *demod, struct protocol_state* p, int16
         }
         if (p->start_c) p->sample_counter++;
         if (p->pulse_distance && (buf[i] > demod->level_limit)) {
+
+/*
+if (p->sample_counter>200)
+{
+printf("WARNING p->sample_counter = %d\n",p->sample_counter);
+demod_print_bits_packet(p);
+}
+*/
             if (p->sample_counter < p->short_limit) {
                 demod_add_bit(p, 0);
             } else if (p->sample_counter < p->long_limit) {
@@ -1072,6 +1142,8 @@ static void pwm_d_decode(struct dm_state *demod, struct protocol_state* p, int16
 static void pwm_p_decode(struct dm_state *demod, struct protocol_state* p, int16_t *buf, uint32_t len) {
     unsigned int i;
 
+
+
     for (i=0 ; i<len ; i++) {
         if (buf[i] > demod->level_limit && !p->start_bit) {
             /* start bit detected */
@@ -1095,7 +1167,6 @@ static void pwm_p_decode(struct dm_state *demod, struct protocol_state* p, int16
 //           fprintf(stderr, "real bit pulse start detected\n");
 
         }
-
         if (p->real_bits && p->pulse_start && (buf[i] < demod->level_limit)) {
             /* end of pulse */
 
@@ -1345,6 +1416,7 @@ int main(int argc, char **argv)
     register_protocol(demod, &elv_em1000);
     register_protocol(demod, &elv_ws2000);
     register_protocol(demod, &waveman);
+    register_protocol(demod, &beuer_hm20);
 
     if (argc <= optind-1) {
         usage();
