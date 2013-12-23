@@ -171,11 +171,11 @@ static int beuer_hm20_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS]) {
 	}
 	else if (mult==0x1f)
 	{
-	    temp = (float)0-(float)deg/10;
+	    temp = (float)-25.6+(float)deg/10;
 	}
 	else if (mult==0x1e)
 	{
-	    temp = (float)-25.6-(float)deg/10;
+	    temp = (float)-51.2+(float)deg/10;
 	}
 	else return 0;
 
